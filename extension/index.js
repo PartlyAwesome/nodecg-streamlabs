@@ -29,17 +29,14 @@ module.exports = nodecg => {
         // For people who wanna handle some of the dirty work themselves
         nodecg.sendMessage("rawEvent", event);
         emitter.emit("rawEvent", event);
+	nodecg.log.info("StreamLabs Event Occured");
 
-        // This wouldn't be necessary if it weren't for the rogue 'streamlabels' event that is not an array
-        let unformatted = event.message instanceof Array ? event.message.pop() : event.message;
-        
+        // I don't think StreamLabs uses more or less than one message per event.message, but just in case
+        let unformatted = event.message.pop();
         // No message? Must be an error, so we skip it because we already do raw emits.
         if(!(unformatted instanceof Object)) {
             nodecg.log.error(`Event ${event.event_id} had no ites in its event.message property, skipping.`);
-            return;
         }
-
-        nodecg.log.debug('New streamlabs event: ' + event.type);
 
         switch(event.type) {
             case "donation": {
@@ -51,19 +48,20 @@ module.exports = nodecg => {
                         amount: unformatted.amount,
                         currency: unformatted.currency
                     },
-                    formatted_amount: unformatted.formatted_amount,
-                    message: unformatted.message
-                };
-                let type_message = {
-                    type: "donation",
-                    message
+                    formatted_amount: unformatted.formatted_amount
                 };
                 nodecg.sendMessage("donation", message);
                 emitter.emit("donation", message);
+		nodecg.log.info("It was a donation!");
+		nodecg.log.info("From: " + message.name);
+		nodecg.log.info("For: " + message.formatted_amount);
+		nodecg.log.info("In: " + message.amount.currency);
+		nodecg.log.info("RawValue: " + message.amount.amount);
 
-                nodecg.sendMessage("streamlabs-event", type_message);
-                emitter.emit("streamlabs-event", type_message);
-                history.add(type_message);
+                history.add({
+                    type: "donation",
+                    message
+                });
                 break;
             }
             case "follow": {
@@ -81,12 +79,16 @@ module.exports = nodecg => {
                 if(event.for === "twitch_account") {
                     nodecg.sendMessage("twitch-follow", message);
                     emitter.emit("twitch-follow");
+		    nodecg.log.info("It was a twitch follow!");
+		    nodecg.log.info("From: " + message.name);
+		    nodecg.log.info("When: " + (unformatted.created_at || "no time given"));
 
                     nodecg.sendMessage("twitch-event", type_message);
                     emitter.emit("twitch-event", type_message);
                 } else if(event.for === "youtube_account") {
                     nodecg.sendMessage("youtube-subscription", message);
                     emitter.emit("youtube-subscription", message);
+		    nodecg.log.info("It was a youtube subscription!");
 
                     nodecg.sendMessage("youtube-event", type_message);
                     emitter.emit("youtube-event", type_message);
@@ -103,7 +105,7 @@ module.exports = nodecg => {
             case "subscription": {
                 // Twitch sub == YouTube sponsor == Mixer subscription
                 let message = {
-                    id: unformatted.id || unformatted._id || null,
+                    id: unformatted._id || null,
                     name: unformatted.name,
                     message: unformatted.message || null,
                     months: unformatted.months || 1
@@ -116,6 +118,10 @@ module.exports = nodecg => {
                 if(event.for === "twitch_account") {
                     nodecg.sendMessage("twitch-subscription", message);
                     emitter.emit("twitch-subscription", message);
+		    nodecg.log.info("It was a twitch sub! GET HYPE!!");
+		    nodecg.log.info("From: " + message.name);
+		    nodecg.log.info("For: " + message.months);
+		    nodecg.log.info("Message: " + message.message);
 
                     nodecg.sendMessage("twitch-event", type_message);
                     emitter.emit("twitch-event", type_message);
@@ -136,13 +142,14 @@ module.exports = nodecg => {
                 history.add(type_message);
                 break;
             }
+	    case "raid":
             case "host": {
                 // Twitch host == Mixer host, no YouTube equivalent
                 let message = {
-                    id: unformatted.id || unformatted._id || null,
+                    id: unformatted._id || null,
                     name: unformatted.name,
-                    viewers: Number(unformatted.viewers),
-                    type: unformatted.type
+                    viewers: Number(unformatted.viewers || unformatted.raiders),
+                    type: event.type
                 };
                 let type_message = {
                     type: "host",
@@ -152,6 +159,10 @@ module.exports = nodecg => {
                 if(event.for === "twitch_account") {
                     nodecg.sendMessage("twitch-host", message);
                     emitter.emit("twitch-host", message);
+		    nodecg.log.info("It was a twitch host/raid! THANK THEM!");
+		    nodecg.log.info("Type: " + message.type);
+		    nodecg.log.info("From: " + message.name);
+		    nodecg.log.info("For: " + message.viewers);
 
                     nodecg.sendMessage("twitch-event", type_message);
                     emitter.emit("twitch-event", type_message);
@@ -178,11 +189,16 @@ module.exports = nodecg => {
                 if(event.for == "twitch_account") {
                     nodecg.sendMessage("twitch-bits", message);
                     emitter.emit("twitch-bits", message);
+		    nodecg.log.info("It's some bits!");
+		    nodecg.log.info("From: " + message.name);
+		    nodecg.log.info("For: " + message.amount);
+		    nodecg.log.info("Message: " + message.message);
 
                     let type_message = {
                         type: "bits",
                         message
                     };
+
                     nodecg.sendMessage("twitch-event", type_message);
                     emitter.emit("twitch-event", type_message);
                     history.add(type_message);
@@ -203,37 +219,9 @@ module.exports = nodecg => {
                 }
                 break;
             }
-            case "raid": {
-                // Twitch raid, I don't believe there's an equivalent for Mixer or Youtube
-                let message = {
-                    id: unformatted.id || unformatted._id || null,
-                    name: unformatted.name,
-                    viewers: unformatted.raiders
-                };
-                let type_message = {
-                    type: "raid",
-                    message
-                };
-
-                nodecg.sendMessage("twitch-raid", message);
-                emitter.emit("twitch-raid", message);
-
-                nodecg.sendMessage("twitch-event", type_message);
-                emitter.emit("twitch-event", type_message);
-                history.add(type_message);
-                break;
-            }
-            case "streamlabels": {
-                let message = unformatted;
-
-                message.id = unformatted.id || unformatted._id || null,
-
-                nodecg.sendMessage("streamlabels", message);
-                emitter.emit("streamlabels", message);
-                break;
-            }
             default:
                 // We don't really need a default here, as we emit all events anyways under rawEvent
+		nodecg.log.info("Unhandled \"" + event.type + "\" event!");
                 break;
         }
     });
