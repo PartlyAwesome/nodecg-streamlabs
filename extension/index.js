@@ -8,6 +8,7 @@ module.exports = nodecg => {
   }
   if (typeof nodecg.bundleConfig.socket_token !== 'string') {
     nodecg.log.error('No socket_token value present in bundleConfig, nodecg-streamlabs will not work without a socket_token. Exiting')
+    nodecg.log.error('socket_token value: ' + nodecg.bundleConfig.socket_token)
     return
   }
 
@@ -103,6 +104,7 @@ module.exports = nodecg => {
         history.add(typeMessage)
         break
       }
+      case 'resub':
       case 'subscription': {
         // Twitch sub == YouTube sponsor == Mixer subscription
         const message = {
