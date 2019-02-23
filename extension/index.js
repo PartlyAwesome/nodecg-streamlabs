@@ -28,12 +28,21 @@ module.exports = nodecg => {
   const history = require('./history')(nodecg)
 
   socket.on('event', event => { // eslint-disable-line complexity
+    if (!event) {
+      nodecg.log.error('StreamLabs event NULL error')
+      return
+    }
     // For people who wanna handle some of the dirty work themselves
     nodecg.sendMessage('rawEvent', event)
     emitter.emit('rawEvent', event)
     nodecg.log.info('StreamLabs Event Occured')
 
     // I don't think StreamLabs uses more or less than one message per event.message, but just in case
+    if (!event.message) {
+      nodecg.log.error('StreamLabs event.message NULL error')
+      nodecg.log.error('event = ' + event)
+      return
+    }
     const unformatted = event.message.pop()
     // No message? Must be an error, so we skip it because we already do raw emits.
     if (!(unformatted instanceof Object)) {
